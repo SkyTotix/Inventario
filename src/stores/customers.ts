@@ -31,6 +31,7 @@ export const useCustomersStore = defineStore('customers', () => {
   // Función para mapear AppCustomer a Customer de Supabase
   const mapToSupabaseCustomer = (customer: Partial<AppCustomer>): Partial<Customer> => {
     const { dateJoined, totalPurchases, totalSpent, lastPurchase, notes, isRegular, preferredGenres, ...supabaseCustomer } = customer
+    void dateJoined; void totalPurchases; void totalSpent; void lastPurchase; void notes; void isRegular; void preferredGenres
     return supabaseCustomer
   }
 

@@ -37,7 +37,8 @@ export const useBooksStore = defineStore('books', () => {
 
   // Función para mapear AppBook a Book de Supabase
   const mapToSupabaseBook = (book: Partial<AppBook>): Partial<Book> => {
-    const { quantity, dateAdded, cost, publishedYear, condition, location, id, created_at, updated_at, ...rest } = book
+    const { quantity, dateAdded: _dateAdded, cost: _cost, publishedYear: _publishedYear, condition: _condition, location: _location, id: _id, created_at: _created_at, updated_at: _updated_at, ...rest } = book
+    void _dateAdded; void _cost; void _publishedYear; void _condition; void _location; void _id; void _created_at; void _updated_at
     const result: Partial<Book> = { ...rest }
 
     // Asegurar tipos numéricos correctos
@@ -52,8 +53,8 @@ export const useBooksStore = defineStore('books', () => {
     }
 
     // Normalizar ISBN vacío a NULL (soporta INSERT y UPDATE para limpiar el campo)
-    if ((result as any).isbn !== undefined && String((result as any).isbn).trim() === '') {
-      ;(result as any).isbn = null as unknown as string
+    if (result.isbn !== undefined && String(result.isbn).trim() === '') {
+      result.isbn = null as unknown as string
     }
 
     return result
@@ -83,23 +84,60 @@ export const useBooksStore = defineStore('books', () => {
     return filtered
   })
 
-  // Función para cargar libros desde Supabase
-  async function loadBooks() {
+  // Función para cargar libros desde Supabase con paginación
+  async function loadBooks(limit = 1000, offset = 0) {
     try {
       loading.value = true
       error.value = null
       
       const { data, error: supabaseError } = await supabase
         .from('books')
-        .select('*')
+        .select('id, title, author, isbn, genre, price, stock, description, created_at, updated_at')
         .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1)
       
       if (supabaseError) throw supabaseError
       
-      books.value = data?.map(mapToAppBook) || []
+      if (offset === 0) {
+        books.value = data?.map(mapToAppBook) || []
+      } else {
+        books.value.push(...(data?.map(mapToAppBook) || []))
+      }
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Error al cargar libros'
       console.error('Error loading books:', err)
+    } finally {
+      loading.value = false
+    }
+  }
+  
+  // Función para cargar más libros (paginación infinita)
+  async function loadMoreBooks() {
+    if (!loading.value) {
+      await loadBooks(100, books.value.length)
+    }
+  }
+  
+  // Función para buscar libros con límite
+  async function searchBooks(query: string, limit = 50) {
+    try {
+      loading.value = true
+      error.value = null
+      
+      const { data, error: supabaseError } = await supabase
+        .from('books')
+        .select('id, title, author, isbn, genre, price, stock')
+        .or(`title.ilike.%${query}%,author.ilike.%${query}%,isbn.ilike.%${query}%,genre.ilike.%${query}%`)
+        .limit(limit)
+        .order('title')
+      
+      if (supabaseError) throw supabaseError
+      
+      return data?.map(mapToAppBook) || []
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Error al buscar libros'
+      console.error('Error searching books:', err)
+      return []
     } finally {
       loading.value = false
     }
@@ -123,10 +161,10 @@ export const useBooksStore = defineStore('books', () => {
       const newBook = mapToAppBook(data)
       books.value.unshift(newBook)
       return newBook
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Manejo de errores comunes
       let friendly = 'Error al agregar libro'
-      if (err?.code === '23505') {
+      if ((err as { code?: string })?.code === '23505') {
         // unique_violation: probablemente ISBN duplicado
         friendly = 'El ISBN ya existe. Por favor ingrese un ISBN único o deje el campo vacío.'
       }
@@ -159,11 +197,12 @@ export const useBooksStore = defineStore('books', () => {
         books.value[index] = updatedBook
       }
       return updatedBook
-    } catch (err: any) {
+    } catch (err: unknown) {
       let friendly = 'Error al actualizar libro'
-      if (err?.code === '23505') {
+      const errorObj = err as { code?: string; message?: string }
+      if (errorObj?.code === '23505') {
         friendly = 'El ISBN ya existe. Por favor ingrese un ISBN único o deje el campo vacío.'
-      } else if (err?.code === '42501' || /row-level security|permission denied/i.test(err?.message || '')) {
+      } else if (errorObj?.code === '42501' || /row-level security|permission denied/i.test(errorObj?.message || '')) {
         friendly = 'No tienes permisos para actualizar libros.'
       }
       error.value = friendly
@@ -190,12 +229,13 @@ export const useBooksStore = defineStore('books', () => {
       if (index !== -1) {
         books.value.splice(index, 1)
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       let friendly = 'Error al eliminar libro'
-      if (err?.code === '23503') {
+      const errorObj = err as { code?: string; message?: string }
+      if (errorObj?.code === '23503') {
         // foreign_key_violation: libro referenciado por ventas
         friendly = 'No se puede eliminar el libro porque tiene ventas asociadas.'
-      } else if (err?.code === '42501' || /row-level security|permission denied/i.test(err?.message || '')) {
+      } else if (errorObj?.code === '42501' || /row-level security|permission denied/i.test(errorObj?.message || '')) {
         friendly = 'No tienes permisos para eliminar libros.'
       }
       error.value = friendly
@@ -256,6 +296,8 @@ export const useBooksStore = defineStore('books', () => {
     genres,
     filteredBooks,
     loadBooks,
+    loadMoreBooks,
+    searchBooks,
     addBook,
     updateBook,
     deleteBook,

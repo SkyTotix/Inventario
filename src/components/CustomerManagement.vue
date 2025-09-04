@@ -25,6 +25,8 @@ const editCustomer = ref<Partial<AppCustomer>>({})
 const sortBy = ref('name')
 const sortOrder = ref<'asc' | 'desc'>('asc')
 const filterBy = ref('all') // all, regular, new, inactive
+const currentPage = ref(1)
+const itemsPerPage = ref(20)
 
 const genres = [
   'Classic Literature',
@@ -69,15 +71,36 @@ const filteredCustomers = computed(() => {
     let aValue = a[sortBy.value as keyof AppCustomer]
     let bValue = b[sortBy.value as keyof AppCustomer]
     
-    if (typeof aValue === 'string') aValue = (aValue as string).toLowerCase() as any
-    if (typeof bValue === 'string') bValue = (bValue as string).toLowerCase() as any
+    if (typeof aValue === 'string') aValue = (aValue as string).toLowerCase()
+    if (typeof bValue === 'string') bValue = (bValue as string).toLowerCase()
+    
+    // Handle undefined values
+    if (aValue === undefined && bValue === undefined) return 0
+    if (aValue === undefined) return sortOrder.value === 'asc' ? -1 : 1
+    if (bValue === undefined) return sortOrder.value === 'asc' ? 1 : -1
     
     if (sortOrder.value === 'asc') {
-      return (aValue as any) < (bValue as any) ? -1 : (aValue as any) > (bValue as any) ? 1 : 0
+      return aValue < bValue ? -1 : aValue > bValue ? 1 : 0
     } else {
-      return (aValue as any) > (bValue as any) ? -1 : (aValue as any) < (bValue as any) ? 1 : 0
+      return aValue > bValue ? -1 : aValue < bValue ? 1 : 0
     }
   })
+})
+
+const paginatedCustomers = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage.value
+  const end = start + itemsPerPage.value
+  return filteredCustomers.value.slice(start, end)
+})
+
+const totalPages = computed(() => {
+  return Math.ceil(filteredCustomers.value.length / itemsPerPage.value)
+})
+
+const paginationInfo = computed(() => {
+  const start = (currentPage.value - 1) * itemsPerPage.value + 1
+  const end = Math.min(currentPage.value * itemsPerPage.value, filteredCustomers.value.length)
+  return { start, end, total: filteredCustomers.value.length }
 })
 
 function openAddModal() {
@@ -146,6 +169,25 @@ function setSortBy(field: string) {
   } else {
     sortBy.value = field
     sortOrder.value = 'asc'
+  }
+  currentPage.value = 1 // Reset to first page when sorting
+}
+
+function goToPage(page: number) {
+  if (page >= 1 && page <= totalPages.value) {
+    currentPage.value = page
+  }
+}
+
+function nextPage() {
+  if (currentPage.value < totalPages.value) {
+    currentPage.value++
+  }
+}
+
+function prevPage() {
+  if (currentPage.value > 1) {
+    currentPage.value--
   }
 }
 
@@ -285,7 +327,7 @@ function toggleGenre(genre: string, genres: string[]) {
           </tr>
         </thead>
         <tbody>
-          <tr v-for="customer in filteredCustomers" :key="customer.id" class="customer-row">
+          <tr v-for="customer in paginatedCustomers" :key="customer.id" class="customer-row">
             <td class="customer-name">
               <div>
                 <strong>{{ customer.name }}</strong>
@@ -334,6 +376,60 @@ function toggleGenre(genre: string, genres: string[]) {
       
       <div v-if="filteredCustomers.length === 0" class="empty-state">
         <p>No se encontraron clientes que coincidan con sus criterios.</p>
+      </div>
+      
+      <!-- Pagination Controls -->
+      <div v-if="totalPages > 1" class="pagination-container">
+        <div class="pagination-info">
+          Mostrando {{ paginationInfo.start }} - {{ paginationInfo.end }} de {{ paginationInfo.total }} clientes
+        </div>
+        <div class="pagination-controls">
+          <button 
+            class="btn btn-secondary btn-sm" 
+            @click="prevPage" 
+            :disabled="currentPage === 1"
+          >
+            ← Anterior
+          </button>
+          
+          <div class="page-numbers">
+            <button 
+              v-for="page in Math.min(5, totalPages)" 
+              :key="page" 
+              class="page-btn"
+              :class="{ active: currentPage === page }"
+              @click="goToPage(page)"
+            >
+              {{ page }}
+            </button>
+            <span v-if="totalPages > 5" class="page-ellipsis">...</span>
+            <button 
+              v-if="totalPages > 5 && currentPage < totalPages - 2" 
+              class="page-btn"
+              @click="goToPage(totalPages)"
+            >
+              {{ totalPages }}
+            </button>
+          </div>
+          
+          <button 
+            class="btn btn-secondary btn-sm" 
+            @click="nextPage" 
+            :disabled="currentPage === totalPages"
+          >
+            Siguiente →
+          </button>
+        </div>
+        
+        <div class="items-per-page">
+          <label>Elementos por página:</label>
+          <select v-model="itemsPerPage" @change="currentPage = 1" class="items-select">
+            <option :value="10">10</option>
+            <option :value="20">20</option>
+            <option :value="50">50</option>
+            <option :value="100">100</option>
+          </select>
+        </div>
       </div>
     </div>
 
@@ -1098,6 +1194,83 @@ function toggleGenre(genre: string, genres: string[]) {
   color: #7f8c8d;
 }
 
+/* Pagination Styles */
+.pagination-container {
+  padding: 1.5rem;
+  border-top: 1px solid #e1e8ed;
+  background: #f8f9fa;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+.pagination-info {
+  font-size: 0.875rem;
+  color: #7f8c8d;
+  font-weight: 500;
+}
+
+.pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.page-numbers {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.page-btn {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e1e8ed;
+  background: white;
+  color: #2c3e50;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: all 0.3s ease;
+}
+
+.page-btn:hover {
+  background: #f8f9fa;
+  border-color: #3498db;
+}
+
+.page-btn.active {
+  background: #3498db;
+  color: white;
+  border-color: #3498db;
+}
+
+.page-ellipsis {
+  padding: 0.5rem;
+  color: #7f8c8d;
+}
+
+.items-per-page {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+
+.items-per-page label {
+  color: #7f8c8d;
+  font-weight: 500;
+}
+
+.items-select {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #e1e8ed;
+  border-radius: 4px;
+  background: white;
+  font-size: 0.875rem;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .customers-header {
@@ -1142,6 +1315,21 @@ function toggleGenre(genre: string, genres: string[]) {
   .modal {
     margin: 1rem;
     max-width: none;
+  }
+  
+  .pagination-container {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+  
+  .pagination-controls {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  
+  .items-per-page {
+    justify-content: center;
   }
 }
 

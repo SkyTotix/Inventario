@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useBooksStore } from '../stores/books'
 import { useSalesStore } from '../stores/sales'
 import { useCustomersStore } from '../stores/customers'
@@ -56,7 +56,7 @@ const canCompleteSale = computed(() => {
          amountPaid.value >= total.value
 })
 
-function addToSale(book: any) {
+function addToSale(book: { id: string; title: string; author: string; price: number; quantity: number }) {
   salesStore.addItemToCurrentSale(book.id)
   searchQuery.value = ''
 }

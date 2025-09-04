@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useBooksStore, type AppBook } from '../stores/books'
 
 const booksStore = useBooksStore()
@@ -58,8 +58,8 @@ const sortedBooks = computed(() => {
     const field = sortBy.value as keyof AppBook
     const numericFields = new Set(['price', 'quantity'])
 
-    const aRaw = (a as any)[field]
-    const bRaw = (b as any)[field]
+    const aRaw = a[field] as string | number
+    const bRaw = b[field] as string | number
 
     if (numericFields.has(field as string)) {
       const an = Number(aRaw ?? 0)
@@ -114,10 +114,10 @@ async function addBook() {
     return
   }
   try {
-    await booksStore.addBook({ ...(newBook.value as any), stock: newBook.value.quantity } as any)
+    await booksStore.addBook({ ...newBook.value, stock: newBook.value.quantity })
     closeModals()
-  } catch (e: any) {
-    alert(booksStore.error || e?.message || 'Error al agregar libro')
+  } catch (e: unknown) {
+    alert(booksStore.error || (e instanceof Error ? e.message : 'Error al agregar libro'))
   }
 }
 
@@ -129,8 +129,8 @@ async function updateBook() {
   try {
     await booksStore.updateBook(selectedBook.value.id, editBook.value)
     closeModals()
-  } catch (e: any) {
-    alert(booksStore.error || e?.message || 'Error al actualizar libro')
+  } catch (e: unknown) {
+    alert(booksStore.error || (e instanceof Error ? e.message : 'Error al actualizar libro'))
   }
 }
 
@@ -139,8 +139,8 @@ async function deleteBook() {
   try {
     await booksStore.deleteBook(selectedBook.value.id)
     closeModals()
-  } catch (e: any) {
-    alert(booksStore.error || e?.message || 'Error al eliminar libro')
+  } catch (e: unknown) {
+    alert(booksStore.error || (e instanceof Error ? e.message : 'Error al eliminar libro'))
   }
 }
 

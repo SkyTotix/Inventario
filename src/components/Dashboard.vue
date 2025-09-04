@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { useBooksStore } from '../stores/books'
+defineOptions({
+  name: 'AppDashboard'
+})
+
+import { ref, computed } from 'vue'
+import { useBooksStore, type AppBook } from '../stores/books'
 import { useSalesStore } from '../stores/sales'
 import { useCustomersStore } from '../stores/customers'
 
@@ -59,7 +63,7 @@ const averageOrderValue = computed(() => {
 
 // Top selling books
 const topSellingBooks = computed(() => {
-  const bookSales = new Map<string, { book: any, quantity: number, revenue: number }>()
+  const bookSales = new Map<string, { book: AppBook, quantity: number, revenue: number }>()
   
   periodSales.value.forEach(sale => {
     sale.items.forEach(item => {
